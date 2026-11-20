@@ -49,9 +49,9 @@ export default async (req) => {
       const ids = d.songId || [];
       let first = null;
       if (ids.length) {
-        /* 随机抽歌，抽到没直链的最多换抽 3 次，保证开机一包就能播 */
+        /* 随机抽歌，抽到没直链的最多换抽 5 次，保证开机一包就能播 */
         const tried = new Set();
-        for (let n = 0; n < 3 && !first; n++) {
+        for (let n = 0; n < 5 && !first; n++) {
           const i = Math.floor(Math.random() * ids.length);
           if (tried.has(i)) continue;
           tried.add(i);
