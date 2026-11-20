@@ -26,20 +26,26 @@ export default async (req) => {
     if (song) {
       const type = u.searchParams.get('type') || 'qq';
       let url = '', pic = '', lrc = '';
-      try {
-        const j = await call('info', { id: song, type, url: '1', pic: '1', lrc: '1' });
-        const d = j && j.data;
+      /* 一次并行取齐：info 拿直链+封面，lrc 专用接口拿歌词；缺项才单接口兜底，不重复请求 */
+      const [infoJ, lrcJ] = await Promise.all([
+        call('info', { id: song, type, url: '1', pic: '1' }).catch(() => null),
+        call('lrc', { id: song, type }).catch(() => null),
+      ]);
+      if (infoJ) {
+        const d = infoJ.data;
         if (d && typeof d === 'object') {
           url = d.url || d.mp3 || d.playUrl || '';
           pic = d.pic || d.picUrl || '';
-          if (typeof d.lrc === 'string') lrc = d.lrc;
-          else if (d.lrc && typeof d.lrc === 'object') lrc = d.lrc.lrc || d.lrc.lyric || '';
-          else if (typeof d.lyric === 'string') lrc = d.lyric;
         } else if (typeof d === 'string') url = d;
-      } catch (e) { /* 走单接口兜底 */ }
+      }
+      if (lrcJ) {
+        const d = lrcJ.data;
+        if (typeof d === 'string') lrc = d;
+        else if (d && typeof d === 'object') lrc = d.lrc || d.lyric || '';
+      }
       if (!url) { try { const j = await call('url', { id: song, type }); const d = j && j.data; url = typeof d === 'string' ? d : (d && (d.url || d.mp3)) || ''; } catch (e) { /* 忽略 */ } }
       if (!pic) { try { const j = await call('pic', { id: song, type }); const d = j && j.data; pic = typeof d === 'string' ? d : (d && (d.pic || d.picUrl)) || ''; } catch (e) { /* 忽略 */ } }
-      if (!lrc) { try { const j = await call('lrc', { id: song, type }); const d = j && j.data; lrc = typeof d === 'string' ? d : (d && (d.lrc || d.lyric)) || ''; } catch (e) { /* 忽略 */ } }
+
       return json({ url, pic, lrc }, 200);
     }
     return json({ error: 'bad params' }, 400);
