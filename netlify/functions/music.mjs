@@ -49,9 +49,15 @@ export default async (req) => {
       const ids = d.songId || [];
       let first = null;
       if (ids.length) {
-        const i = Math.floor(Math.random() * ids.length);
-        const t = (d.type && d.type[i]) || 'qq';
-        try { const r = await resolveSongUpstream(String(ids[i]), t); if (r && r.url) first = { id: String(ids[i]), url: r.url, pic: r.pic, lrc: r.lrc }; } catch (e) { /* 忽略 */ }
+        /* 随机抽歌，抽到没直链的最多换抽 3 次，保证开机一包就能播 */
+        const tried = new Set();
+        for (let n = 0; n < 3 && !first; n++) {
+          const i = Math.floor(Math.random() * ids.length);
+          if (tried.has(i)) continue;
+          tried.add(i);
+          const t = (d.type && d.type[i]) || 'qq';
+          try { const r = await resolveSongUpstream(String(ids[i]), t); if (r && r.url) first = { id: String(ids[i]), url: r.url, pic: r.pic, lrc: r.lrc }; } catch (e) { /* 忽略 */ }
+        }
       }
       return json({ ...(j || {}), first }, 200);
     }
