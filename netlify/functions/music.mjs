@@ -17,19 +17,13 @@ export default async (req) => {
     if (!r.ok) throw new Error('upstream');
     return r.json();
   };
-  try {
-    if (u.searchParams.get('list')) {
-      const j = await call('list', { type: 'qq', id: '2206788506', format: '1' });
-      return json(j, 200);
-    }
-    const song = u.searchParams.get('song');
-    if (song) {
-      const type = u.searchParams.get('type') || 'qq';
+  /* 取一首歌的直链+封面+歌词：info 与 lrc 并行一次取齐，缺项才单接口兜底 */
+  const resolveSongUpstream = async (id, type) => {
       let url = '', pic = '', lrc = '';
       /* 一次并行取齐：info 拿直链+封面，lrc 专用接口拿歌词；缺项才单接口兜底，不重复请求 */
       const [infoJ, lrcJ] = await Promise.all([
-        call('info', { id: song, type, url: '1', pic: '1' }).catch(() => null),
-        call('lrc', { id: song, type }).catch(() => null),
+        call('info', { id, type, url: '1', pic: '1' }).catch(() => null),
+        call('lrc', { id, type }).catch(() => null),
       ]);
       if (infoJ) {
         const d = infoJ.data;
@@ -43,10 +37,33 @@ export default async (req) => {
         if (typeof d === 'string') lrc = d;
         else if (d && typeof d === 'object') lrc = d.lrc || d.lyric || '';
       }
-      if (!url) { try { const j = await call('url', { id: song, type }); const d = j && j.data; url = typeof d === 'string' ? d : (d && (d.url || d.mp3)) || ''; } catch (e) { /* 忽略 */ } }
-      if (!pic) { try { const j = await call('pic', { id: song, type }); const d = j && j.data; pic = typeof d === 'string' ? d : (d && (d.pic || d.picUrl)) || ''; } catch (e) { /* 忽略 */ } }
-
-      return json({ url, pic, lrc }, 200);
+      if (!url) { try { const j = await call('url', { id, type }); const d = j && j.data; url = typeof d === 'string' ? d : (d && (d.url || d.mp3)) || ''; } catch (e) { /* 忽略 */ } }
+      if (!pic) { try { const j = await call('pic', { id, type }); const d = j && j.data; pic = typeof d === 'string' ? d : (d && (d.pic || d.picUrl)) || ''; } catch (e) { /* 忽略 */ } }
+      return { url, pic, lrc };
+  };
+  try {
+    if (u.searchParams.get('boot')) {
+      /* 开机一次取齐：歌单 + 随机一首的直链/封面/歌词，浏览器一个请求就能开播 */
+      const j = await call('list', { type: 'qq', id: '2206788506', format: '1' });
+      const d = (j && j.data) || {};
+      const ids = d.songId || [];
+      let first = null;
+      if (ids.length) {
+        const i = Math.floor(Math.random() * ids.length);
+        const t = (d.type && d.type[i]) || 'qq';
+        try { const r = await resolveSongUpstream(String(ids[i]), t); if (r && r.url) first = { id: String(ids[i]), url: r.url, pic: r.pic, lrc: r.lrc }; } catch (e) { /* 忽略 */ }
+      }
+      return json({ ...(j || {}), first }, 200);
+    }
+    if (u.searchParams.get('list')) {
+      const j = await call('list', { type: 'qq', id: '2206788506', format: '1' });
+      return json(j, 200);
+    }
+    const song = u.searchParams.get('song');
+    if (song) {
+      const type = u.searchParams.get('type') || 'qq';
+      const r = await resolveSongUpstream(song, type);
+      return json(r, 200);
     }
     return json({ error: 'bad params' }, 400);
   } catch (e) {
