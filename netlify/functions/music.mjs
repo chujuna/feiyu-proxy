@@ -1,0 +1,64 @@
+// 肥鱼主页歌单接口：密钥只存在 Netlify 环境变量 MYHKW_KEY 里，浏览器永远拿不到。
+// GET /api/music?list=1             → QQ 歌单 2206788506 的格式化数据（format=1 原样透传）
+// GET /api/music?song=<id>&type=qq  → { url, pic, lrc }（服务端代调 info，缺项再单接口兜底）
+export default async (req) => {
+  if (req.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
+  let key = '';
+  try { key = (typeof Netlify !== 'undefined' && Netlify.env) ? (Netlify.env.get('MYHKW_KEY') || '') : ''; } catch (e) { /* 忽略 */ }
+  if (!key && typeof process !== 'undefined' && process.env) key = process.env.MYHKW_KEY || '';
+  if (!key) return json({ error: 'missing key' }, 500);
+  const u = new URL(req.url);
+  const base = 'https://myhkw.cn/open/music/';
+  const call = async (ep, params) => {
+    const q = new URLSearchParams({ key, ...params });
+    const r = await fetch(base + ep + '?' + q.toString(), {
+      headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15' },
+    });
+    if (!r.ok) throw new Error('upstream');
+    return r.json();
+  };
+  try {
+    if (u.searchParams.get('list')) {
+      const j = await call('list', { type: 'qq', id: '2206788506', format: '1' });
+      return json(j, 200);
+    }
+    const song = u.searchParams.get('song');
+    if (song) {
+      const type = u.searchParams.get('type') || 'qq';
+      let url = '', pic = '', lrc = '';
+      try {
+        const j = await call('info', { id: song, type, url: '1', pic: '1', lrc: '1' });
+        const d = j && j.data;
+        if (d && typeof d === 'object') {
+          url = d.url || d.mp3 || d.playUrl || '';
+          pic = d.pic || d.picUrl || '';
+          if (typeof d.lrc === 'string') lrc = d.lrc;
+          else if (d.lrc && typeof d.lrc === 'object') lrc = d.lrc.lrc || d.lrc.lyric || '';
+          else if (typeof d.lyric === 'string') lrc = d.lyric;
+        } else if (typeof d === 'string') url = d;
+      } catch (e) { /* 走单接口兜底 */ }
+      if (!url) { try { const j = await call('url', { id: song, type }); const d = j && j.data; url = typeof d === 'string' ? d : (d && (d.url || d.mp3)) || ''; } catch (e) { /* 忽略 */ } }
+      if (!pic) { try { const j = await call('pic', { id: song, type }); const d = j && j.data; pic = typeof d === 'string' ? d : (d && (d.pic || d.picUrl)) || ''; } catch (e) { /* 忽略 */ } }
+      if (!lrc) { try { const j = await call('lrc', { id: song, type }); const d = j && j.data; lrc = typeof d === 'string' ? d : (d && (d.lrc || d.lyric)) || ''; } catch (e) { /* 忽略 */ } }
+      return json({ url, pic, lrc }, 200);
+    }
+    return json({ error: 'bad params' }, 400);
+  } catch (e) {
+    return json({ error: 'upstream failed' }, 502);
+  }
+};
+
+export const config = { path: '/api/music' };
+
+function cors(r) {
+  r.headers.set('Access-Control-Allow-Origin', '*');
+  r.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  r.headers.set('Access-Control-Allow-Headers', '*');
+  return r;
+}
+function json(obj, status) {
+  return cors(new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  }));
+}
