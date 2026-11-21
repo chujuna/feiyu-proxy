@@ -121,11 +121,9 @@ if (bytes.length > SIZE_LIMIT[kind]) {
 return json(req, { error: kind + ' file too large: ' + bytes.length + ' bytes (limit ' + SIZE_LIMIT[kind] + ')'}, 413);
 }
 
-// 服务端生成路径：{kind}/{YYYY}/{MM}/{user_no}-{随机12位}.{ext}
-const now = new Date();
-const yyyy = String(now.getUTCFullYear());
-const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-const path = kind + '/' + yyyy + '/' + mm + '/' + userNo + '-' + randomStr(12) + '.' + ext;
+// 服务端生成路径：paopao/file/{YYYY-MM-DD}/{kind}-{user_no}-{随机12位}.{ext}（日期按 Asia/Shanghai）
+const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+const path = 'paopao/file/' + day + '/' + kind + '-' + userNo + '-' + randomStr(12) + '.' + ext;
 
 // GitHub Contents API 上传（PUT 新文件）
 const ghUrl = 'https://api.github.com/repos/' + MEDIA_REPO + '/contents/' + path;

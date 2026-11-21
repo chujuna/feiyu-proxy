@@ -15,7 +15,7 @@
 // - 身份只认 Supabase JWT（/auth/v1/user 验证 + profiles 查询），无效 401、已封禁 403。
 // - 删除权限：必须先查 bubbles 确认该泡泡属于请求者本人，或请求者 role='admin'，否则 403。
 // 防止任何人拿别人的 path 乱删文件——只认 bubble_id 绑定的归属，不信前端单给的 path。
-// - path 严格校验：必须是本仓库媒体目录内的相对路径（image/ 或 audio/ 开头），禁止..、绝对路径、反斜杠。
+// - path 严格校验：必须是本仓库媒体目录内的相对路径（paopao/file/ 开头），禁止..、绝对路径、反斜杠。
 // - jsDelivr 有 CDN 缓存：GitHub 文件删掉后，CDN 地址可能残留一阵才失效，属已知现象，不算删除失败。
 
 export const config = { path: '/api/delete-media'};
@@ -74,12 +74,12 @@ if (profile.is_banned) return { error: 'account is banned', status: 403};
 return { user, profile, jwt};
 }
 
-// path 必须落在媒体目录内：image/ 或 audio/ 开头、无穿越、无绝对路径
+// path 必须落在媒体目录内：paopao/file/ 开头、无穿越、无绝对路径
 function isSafeMediaPath(p) {
 if (typeof p!== 'string' ||!p) return false;
 if (p.startsWith('/') || p.startsWith('\\') || p.includes('\\') || p.includes('\0')) return false;
 if (p.split('/').some((seg) => seg === '..' || seg === '.' || seg === '')) return false;
-if (!/^(image|audio)\/[A-Za-z0-9._\-\/]+$/.test(p)) return false;
+if (!/^paopao\/file\/[A-Za-z0-9._\-\/]+$/.test(p)) return false;
 return true;
 }
 
