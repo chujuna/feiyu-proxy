@@ -19,7 +19,17 @@ function json(obj, status) {
   });
 }
 export default async (req) => {
-  if (req.method === 'OPTIONS') return json({}, 204);
+  // 预检必须返回无正文的 204：带 JSON 正文的 204 会让 Netlify 边缘回 502，浏览器 fetch 直接失败
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
   if (req.method !== 'POST') return json({ error: '请求方式不正确' }, 405);
 
   const url = env('SUPABASE_URL'), anon = env('SUPABASE_ANON_KEY'), svc = env('SUPABASE_SERVICE_KEY');
