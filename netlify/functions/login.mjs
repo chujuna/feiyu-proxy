@@ -36,13 +36,15 @@ export default async (req) => {
     const filter = /^\d+$/.test(account)
       ? 'user_no=eq.' + encodeURIComponent(account)
       : 'username=ilike.' + encodeURIComponent(account);
-    let rows = null;
+    let rows = null, lookupOk = false;
     try {
       const r = await fetch(url + '/rest/v1/profiles?select=email&' + filter, {
         headers: { apikey: svc, Authorization: 'Bearer ' + svc },
       });
+      lookupOk = r.ok;
       rows = await r.json();
     } catch (e) { /* 忽略 */ }
+    if (!lookupOk) return json({ error: '登录服务异常，请改用邮箱登录' }, 500);
     if (!Array.isArray(rows) || !rows.length || !rows[0].email) {
       return json({ error: '账号或密码不正确' }, 401);
     }
