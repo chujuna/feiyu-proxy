@@ -39,7 +39,8 @@ export default async (req) => {
     let rows = null, lookupOk = false;
     try {
       const r = await fetch(url + '/rest/v1/profiles?select=email&' + filter, {
-        headers: { apikey: svc, Authorization: 'Bearer ' + svc },
+        // 新版 sb_secret 密钥不是 JWT，只能走 apikey 头；放进 Bearer 会被当 JWT 解析而拒绝
+        headers: { apikey: svc },
       });
       lookupOk = r.ok;
       rows = await r.json();
